@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periferia IT | Agente de compras</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f2f5f7;color:#263238}
+header{background:#123d3a;color:white;padding:22px 5%;display:flex;justify-content:space-between;align-items:center}
+header h1{margin:0;font-size:22px}header p{margin:5px 0 0;color:#c8e3dc}
+.tag{background:#e4f4ed;color:#176b50;border-radius:20px;padding:9px 14px;font-size:13px}
+main{max-width:1100px;margin:28px auto;padding:0 18px;display:grid;grid-template-columns:1.2fr .8fr;gap:20px}
+.card{background:white;border-radius:12px;padding:24px;box-shadow:0 2px 12px #0000000d}
+h2{font-size:20px;margin-top:0}.muted{color:#687780;font-size:14px;line-height:1.5}
+select,button{padding:12px;border-radius:7px;border:1px solid #ccd5d9;font-size:14px}
+select{width:100%;margin:12px 0}
+button{cursor:pointer;border:0;background:#087f72;color:white;font-weight:bold;margin:5px 5px 5px 0}
+button.secondary{background:#536b82}button:disabled{opacity:.5;cursor:not-allowed}
+.result{margin-top:18px;padding:15px;background:#f5f8f9;border-radius:8px;white-space:pre-wrap;font-size:14px;line-height:1.6}
+.status{font-weight:bold}.ok{color:#16845b}.bad{color:#bd6c19}
+ul{padding-left:20px;font-size:14px;line-height:1.8}
+footer{text-align:center;color:#77858c;font-size:12px;padding:20px}
+@media(max-width:750px){main{grid-template-columns:1fr}header{gap:10px;flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header>
+ <div><h1>PERIFERIA IT</h1><p>Agente conversacional de órdenes de compra SAP</p></div>
+ <span class="tag">● Sistema de demostración</span>
+</header>
+<main>
+<section class="card">
+ <h2>🤖 Asistente de compras</h2>
+ <p class="muted">Selecciona una solicitud. El agente revisará proveedor, centro de costos, aprobación, cotización, IVA y condiciones de pago.</p>
+ <label for="caso">Solicitud de compra</label>
+ <select id="caso">
+  <option value="sol-001">SOL-001</option><option value="sol-002">SOL-002</option>
+  <option value="sol-003">SOL-003</option><option value="sol-004">SOL-004</option>
+  <option value="sol-005">SOL-005</option><option value="sol-006">SOL-006</option>
+ </select>
+ <button onclick="validar()">Ejecutar validaciones</button>
+ <button class="secondary" onclick="verCasos()">Ver los seis casos</button>
+ <div id="resultado" class="result">Hola. Soy el asistente de compras. Selecciona una solicitud para comenzar.</div>
+ <div id="confirmacion"></div>
+</section>
+<aside class="card">
+ <h2>🛡️ Panel de controles</h2>
+ <p class="muted">Resultados de las verificaciones del sistema</p>
+ <ul id="controles">
+  <li>Proveedor: pendiente</li><li>Centro de costos: pendiente</li>
+  <li>Aprobación: pendiente</li><li>Cotización: pendiente</li>
+  <li>IVA y pago: pendiente</li>
+ </ul>
+ <h3>Actividad del agente</h3>
+ <ul><li>Consulta de solicitud</li><li>Validación contra maestros</li>
+ <li>Evaluación de controles</li><li>Confirmación humana antes de crear orden</li></ul>
+ <div id="ordenes" class="result">No hay órdenes simuladas creadas.</div>
+</aside>
+</main>
+<footer>Prototipo académico · SAP simulado · No ejecuta transacciones reales</footer>
+<script>
+async function validar(){
+ const boton=document.querySelector("button");
+ boton.disabled=true;
+ document.getElementById("resultado").textContent="Procesando solicitud y verificando controles...";
+ document.getElementById("confirmacion").innerHTML="";
+ try{
+  const r=await fetch("/api/validar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({caso:document.getElementById("caso").value})});
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.error);
+  document.getElementById("resultado").textContent=
+   "Solicitud: "+d.solicitud+"\nProveedor: "+d.proveedor+"\nValor: $"+Number(d.valor).toLocaleString("es-CO")+
+   "\nAprobador: "+d.aprobador+"\nEstado: "+d.estado+
+   "\n\nErrores:\n"+(d.errores.length?d.errores.map(x=>"• "+x).join("\n"):"Ninguno")+
+   "\n\nAdvertencias:\n"+(d.advertencias.length?d.advertencias.map(x=>"• "+x).join("\n"):"Ninguna");
+  document.getElementById("controles").innerHTML=[
+   ["Proveedor",!d.errores.some(x=>x.includes("Proveedor"))],
+   ["Centro de costos",!d.errores.some(x=>x.includes("Centro")||x.includes("Subárea"))],
+   ["Aprobación",d.aprobacionValida],
+   ["Cotización",!d.errores.some(x=>x.includes("cotización")||x.includes("Diferencia"))],
+   ["IVA y condiciones de pago",!d.errores.some(x=>x.includes("IVA")||x.includes("pago"))]
+  ].map(x=>"<li>"+x[0]+": <b class='"+(x[1]?"ok":"bad")+"'>"+(x[1]?"Correcto":"Pendiente / revisar")+"</b></li>").join("");
+  if(d.errores.length===0){
+   document.getElementById("confirmacion").innerHTML='<p class="ok">Validaciones superadas. Se requiere confirmación humana.</p><button onclick="confirmar()">Confirmar y simular creación de OC</button>';
+  }else{
+   document.getElementById("confirmacion").innerHTML='<p class="bad">Solicitud bloqueada. Corrige los hallazgos antes de continuar.</p>';
+  }
+ }catch(e){document.getElementById("resultado").textContent="Error: "+e.message}
+ finally{boton.disabled=false}
+}
+async function confirmar(){
+ const r=await fetch("/api/confirmar",{method:"POST"});
+ const d=await r.json();
+ document.getElementById("resultado").textContent=d.mensaje||d.error;
+ if(d.orden)document.getElementById("resultado").textContent+="\nNúmero: "+d.orden.numero;
+ await cargarOrdenes();
+}
+async function cargarOrdenes(){
+ const r=await fetch("/api/ordenes");const d=await r.json();
+ document.getElementById("ordenes").textContent=d.length? "Órdenes simuladas:\n"+d.map(o=>o.numero+" · "+o.solicitud).join("\n"):"No hay órdenes simuladas creadas.";
+}
+async function verCasos(){
+ const r=await fetch("/api/casos");const d=await r.json();
+ document.getElementById("resultado").textContent=d.map(x=>x.caso+" | "+x.estado+"\n"+(x.errores||[]).join("; ")).join("\n\n");
+}
+cargarOrdenes();
+</script>
+</body>
+</html>
